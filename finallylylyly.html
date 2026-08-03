@@ -6,19 +6,82 @@
   <title>歌词合集 · 侧边栏版（无拖拽）</title>
 
   <style>
+    /* ========== 主题变量 ========== */
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f7;
+      --surface: #f0f0f0;
+      --surface-2: #e8e8e8;
+      --raised: #ffffff;
+      --border: #ddd;
+      --text: #222;
+      --text-2: #666;
+      --text-muted: #888;
+      --btn: #666;
+      --btn-solid: #333;
+      --btn-flat: #555;
+      --btn-cancel: #999;
+      --hover: rgba(0,0,0,0.06);
+      --hover-strong: rgba(68,119,204,0.12);
+      --hover-accent: rgba(68,119,204,0.06);
+      --resize-hover: rgba(68,119,204,0.3);
+      --scrollbar: #ccc;
+      --accent: #4477cc;
+      --accent-deep: #006699;
+      --accent-strong: #069;
+      --success: #228844;
+      --warning: #b85c00;
+      --danger: #c00;
+      --danger-deep: #a00;
+      --danger-2: #b33;
+      --shadow: 0 2px 12px #ccc;
+      --shadow-dark: 0 2px 12px #000;
+    }
+    body.dark {
+      color-scheme: dark;
+      --bg: #0f1216;
+      --surface: #161b22;
+      --surface-2: #1a2029;
+      --raised: #1c2330;
+      --border: #263040;
+      --text: #e4e9f0;
+      --text-2: #9aa5b5;
+      --text-muted: #68748a;
+      --btn: #2a3342;
+      --btn-solid: #232b38;
+      --btn-flat: #20242e;
+      --btn-cancel: #39404e;
+      --hover: rgba(255,255,255,0.07);
+      --hover-strong: rgba(91,141,218,0.18);
+      --hover-accent: rgba(91,141,218,0.12);
+      --resize-hover: rgba(91,141,218,0.35);
+      --scrollbar: #3a4557;
+      --accent: #5b8dda;
+      --accent-deep: #4a7fc7;
+      --accent-strong: #6f9ee0;
+      --success: #3fae62;
+      --warning: #d99414;
+      --danger: #e05252;
+      --danger-deep: #c24848;
+      --danger-2: #d35b5b;
+      --shadow: 0 2px 12px rgba(0,0,0,0.6);
+      --shadow-dark: 0 2px 12px #000;
+    }
+
     /* ========== 全局 ========== */
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
       font-family: "Microsoft YaHei", system-ui, sans-serif;
-      background: #f7f7f7;
-      color: #222;
+      background: var(--bg);
+      color: var(--text);
       transition: background 0.3s, color 0.3s;
       height: 100vh;
       overflow: hidden;
     }
-    body.dark {
-      background: #1a1a1a;
-      color: #ddd;
+    .sidebar, .sidebar-search input, .sidebar-search .sort-btn,
+    .setting-panel, .set-item select, .form-item input, .form-item textarea,
+    .modal-box, .song-item .actions button, .hamburger, .setting-toggle {
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
     }
 
     /* ========== 主布局 ========== */
@@ -33,20 +96,15 @@
       width: 320px;
       min-width: 200px;
       max-width: 600px;
-      background: #f0f0f0;
-      border-right: 1px solid #ddd;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
-      transition: background 0.3s, border-color 0.3s;
       position: relative;
       z-index: 100;
       flex-shrink: 0;
-    }
-    body.dark .sidebar {
-      background: #252525;
-      border-right-color: #444;
     }
 
     /* 侧边栏宽度拖拽手柄（保留） */
@@ -63,19 +121,14 @@
     }
     .resize-handle:hover,
     .resize-handle.active {
-      background: rgba(68, 119, 204, 0.3);
-    }
-    body.dark .resize-handle:hover,
-    body.dark .resize-handle.active {
-      background: rgba(68, 119, 204, 0.5);
+      background: var(--resize-hover);
     }
 
     .sidebar-header {
       padding: 12px 16px 8px;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-    body.dark .sidebar-header { border-bottom-color: #444; }
     .sidebar-header h1 {
       font-size: 18px;
       display: flex;
@@ -83,8 +136,7 @@
       align-items: center;
       margin-bottom: 8px;
     }
-    .sidebar-header h1 .count { font-size: 13px; font-weight: normal; color: #888; }
-    body.dark .sidebar-header h1 .count { color: #aaa; }
+    .sidebar-header h1 .count { font-size: 13px; font-weight: normal; color: var(--text-muted); }
 
     .sidebar-search {
       display: flex;
@@ -94,30 +146,21 @@
     .sidebar-search input {
       flex: 1;
       padding: 5px 10px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 14px;
-      background: #fff;
-      color: #222;
-    }
-    body.dark .sidebar-search input {
-      background: #333;
-      color: #ddd;
-      border-color: #555;
+      background: var(--raised);
+      color: var(--text);
     }
     .sidebar-search .sort-btn {
       padding: 5px 10px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--border);
       border-radius: 6px;
-      background: #fff;
+      background: var(--raised);
+      color: var(--text);
       cursor: pointer;
       font-size: 14px;
       white-space: nowrap;
-    }
-    body.dark .sidebar-search .sort-btn {
-      background: #333;
-      color: #ddd;
-      border-color: #555;
     }
 
     /* 全部歌曲库列表 */
@@ -131,21 +174,16 @@
       padding: 6px 16px;
       font-size: 13px;
       font-weight: 600;
-      color: #666;
-      background: #e8e8e8;
-      border-bottom: 1px solid #ddd;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-shrink: 0;
     }
-    body.dark .list-area .list-header {
-      background: #2d2d2d;
-      color: #aaa;
-      border-bottom-color: #444;
-    }
     .list-area .list-header .badge {
-      background: #4477cc;
+      background: var(--accent);
       color: #fff;
       border-radius: 12px;
       padding: 0 8px;
@@ -158,8 +196,7 @@
       padding: 4px 0;
     }
     .list-container::-webkit-scrollbar { width: 4px; }
-    .list-container::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-    body.dark .list-container::-webkit-scrollbar-thumb { background: #555; }
+    .list-container::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
 
     /* 单个歌曲项（无拖拽手柄） */
     .song-item {
@@ -172,14 +209,10 @@
       gap: 6px;
       background: transparent;
     }
-    .song-item:hover { background: rgba(68, 119, 204, 0.06); }
-    body.dark .song-item:hover { background: rgba(68, 119, 204, 0.12); }
+    .song-item:hover { background: var(--hover-accent); }
     .song-item.active {
-      background: rgba(68, 119, 204, 0.12);
-      border-left-color: #4477cc;
-    }
-    body.dark .song-item.active {
-      background: rgba(68, 119, 204, 0.2);
+      background: var(--hover-strong);
+      border-left-color: var(--accent);
     }
 
     .song-item .info {
@@ -195,12 +228,11 @@
     }
     .song-item .info .singer {
       font-size: 12px;
-      color: #888;
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    body.dark .song-item .info .singer { color: #aaa; }
 
     .song-item .actions {
       display: flex;
@@ -218,25 +250,22 @@
       padding: 2px 4px;
       border-radius: 4px;
       transition: 0.15s;
-      color: #666;
+      color: var(--text-2);
     }
-    body.dark .song-item .actions button { color: #aaa; }
-    .song-item .actions button:hover { background: rgba(0,0,0,0.08); }
-    body.dark .song-item .actions button:hover { background: rgba(255,255,255,0.08); }
-    .song-item .actions .edit-btn { color: #069; }
-    .song-item .actions .del-btn { color: #c00; }
+    .song-item .actions button:hover { background: var(--hover); }
+    .song-item .actions .edit-btn { color: var(--accent-strong); }
+    .song-item .actions .del-btn { color: var(--danger); }
 
     /* 底部操作栏 - 按钮垂直排列 */
     .sidebar-footer {
       padding: 8px 12px;
-      border-top: 1px solid #ddd;
+      border-top: 1px solid var(--border);
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
       flex-shrink: 0;
       justify-content: center;
     }
-    body.dark .sidebar-footer { border-top-color: #444; }
 
     .sidebar-footer .btn-vertical {
       display: flex;
@@ -249,7 +278,7 @@
       font-size: 12px;
       cursor: pointer;
       color: #fff;
-      background: #666;
+      background: var(--btn);
       transition: 0.2s;
       flex: 1;
       min-width: 50px;
@@ -264,9 +293,9 @@
       font-size: 11px;
       opacity: 0.9;
     }
-    .sidebar-footer .btn-vertical.add-btn { background: #228844; }
-    .sidebar-footer .btn-vertical.import-btn { background: #b85c00; }
-    .sidebar-footer .btn-vertical.export-btn { background: #006699; }
+    .sidebar-footer .btn-vertical.add-btn { background: var(--success); }
+    .sidebar-footer .btn-vertical.import-btn { background: var(--warning); }
+    .sidebar-footer .btn-vertical.export-btn { background: var(--accent-deep); }
 
     .sidebar-footer .btn-flat {
       padding: 4px 10px;
@@ -275,15 +304,15 @@
       font-size: 16px;
       cursor: pointer;
       color: #fff;
-      background: #555;
+      background: var(--btn-flat);
       transition: 0.2s;
       flex: 0 0 auto;
       min-width: 40px;
       line-height: 28px;
       text-align: center;
     }
-    .sidebar-footer .btn-flat.theme-btn { background: #555; }
-    .sidebar-footer .btn-flat.undo-btn { background: #b85c00; }
+    .sidebar-footer .btn-flat.theme-btn { background: var(--btn-flat); }
+    .sidebar-footer .btn-flat.undo-btn { background: var(--warning); }
 
     /* ===== 右侧主内容 ===== */
     .main-content {
@@ -291,10 +320,8 @@
       height: 100vh;
       overflow-y: auto;
       padding: 30px 25px 40px;
-      background: #f7f7f7;
-      transition: background 0.3s;
+      background: var(--bg);
     }
-    body.dark .main-content { background: #1a1a1a; }
 
     .settings-wrap {
       display: flex;
@@ -306,7 +333,7 @@
       border: none;
       border-radius: 6px;
       font-size: 14px;
-      background: #333;
+      background: var(--btn-solid);
       color: #fff;
       cursor: pointer;
     }
@@ -316,41 +343,30 @@
       right: 20px;
       top: 70px;
       width: 280px;
-      background: #fff;
+      background: var(--raised);
       padding: 16px;
       border-radius: 10px;
-      box-shadow: 0 2px 12px #ccc;
+      box-shadow: var(--shadow);
       display: none;
       z-index: 999;
     }
     .setting-panel.show { display: block; }
-    body.dark .setting-panel {
-      background: #2d2d2d;
-      color: #ddd;
-      box-shadow: 0 2px 12px #000;
-    }
     .set-item { margin: 12px 0; }
     .set-item label {
       display: block;
       margin-bottom: 4px;
       font-size: 14px;
-      color: #444;
+      color: var(--text-2);
     }
-    body.dark .set-item label { color: #bbb; }
     .set-item input[type="range"] { width: 100%; }
-    .set-value { font-size: 13px; color: #777; }
+    .set-value { font-size: 13px; color: var(--text-muted); }
     .set-item select {
       width: 100%;
       padding: 6px;
-      border: 1px solid #ddd;
+      border: 1px solid var(--border);
       border-radius: 4px;
-      background: #fff;
-      color: #333;
-    }
-    body.dark .set-item select {
-      background: #1e1e1e;
-      color: #ddd;
-      border-color: #555;
+      background: var(--raised);
+      color: var(--text);
     }
     .reset-btn, .reset-songs-btn {
       width: 100%;
@@ -361,8 +377,8 @@
       border-radius: 6px;
       cursor: pointer;
     }
-    .reset-btn { background: #666; }
-    .reset-songs-btn { background: #b33; }
+    .reset-btn { background: var(--btn); }
+    .reset-songs-btn { background: var(--danger-2); }
 
     /* 歌词展示 */
     .song-wrap {
@@ -377,7 +393,7 @@
     }
     .song-title {
       font-size: 26px;
-      color: #222;
+      color: var(--text);
       margin-bottom: 30px;
       display: flex;
       align-items: center;
@@ -385,10 +401,9 @@
       gap: 16px;
       flex-wrap: wrap;
     }
-    body.dark .song-title { color: #ddd; }
     .song-title .del-song-btn,
     .song-title .edit-song-btn {
-      background: #c00;
+      background: var(--danger);
       color: #fff;
       border: none;
       padding: 4px 14px;
@@ -396,9 +411,9 @@
       font-size: 14px;
       cursor: pointer;
     }
-    .song-title .edit-song-btn { background: #069; }
-    .song-title .del-song-btn:hover { background: #a00; }
-    .song-title .edit-song-btn:hover { background: #047; }
+    .song-title .edit-song-btn { background: var(--accent-strong); }
+    .song-title .del-song-btn:hover { background: var(--danger-deep); }
+    .song-title .edit-song-btn:hover { background: var(--accent-deep); }
 
     .lyric-box {
       display: flex;
@@ -410,13 +425,12 @@
       width: 330px;
       line-height: 2.3;
       font-size: 17px;
-      color: #222;
+      color: var(--text);
       white-space: pre-line;
       letter-spacing: 0px;
       text-align: center;
       min-width: 200px;
     }
-    body.dark .col { color: #ddd; }
     .col.single {
       width: auto;
       max-width: 600px;
@@ -425,7 +439,7 @@
     .word-count {
       margin-top: 15px;
       font-size: 14px;
-      color: #888;
+      color: var(--text-muted);
     }
 
     /* 弹窗 */
@@ -442,13 +456,13 @@
     .modal-box {
       width: 520px;
       max-width: 94%;
-      background: #fff;
+      background: var(--raised);
+      color: var(--text);
       padding: 24px;
       border-radius: 12px;
       max-height: 90vh;
       overflow-y: auto;
     }
-    body.dark .modal-box { background: #2d2d2d; color: #ddd; }
     .modal-title {
       font-size: 20px;
       margin-bottom: 18px;
@@ -459,23 +473,16 @@
       display: block;
       margin-bottom: 5px;
       font-size: 14px;
-      color: #333;
+      color: var(--text);
     }
-    body.dark .form-item label { color: #bbb; }
     .form-item input, .form-item textarea {
       width: 100%;
       padding: 8px;
-      border: 1px solid #ddd;
+      border: 1px solid var(--border);
       border-radius: 6px;
       font-family: inherit;
-      background: #fff;
-      color: #333;
-    }
-    body.dark .form-item input,
-    body.dark .form-item textarea {
-      background: #1e1e1e;
-      color: #ddd;
-      border-color: #555;
+      background: var(--raised);
+      color: var(--text);
     }
     .form-item textarea { height: 120px; resize: vertical; }
     .modal-btns {
@@ -491,27 +498,53 @@
       cursor: pointer;
       font-size: 15px;
     }
-    .modal-btns button {
-      flex: 1;
-      padding: 9px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 15px;
-    }
-    .confirm-add { background: #228844; color: #fff; }
-    .cancel-add { background: #999; color: #fff; }
-    .modal-btns .confirm-add.danger { background: #c00; }
-    .modal-btns .confirm-add.danger:hover { background: #a00; }
+    .confirm-add { background: var(--success); color: #fff; }
+    .cancel-add { background: var(--btn-cancel); color: #fff; }
+    .modal-btns .confirm-add.danger { background: var(--danger); }
+    .modal-btns .confirm-add.danger:hover { background: var(--danger-deep); }
     .dialog-msg {
       margin-bottom: 6px;
       line-height: 1.8;
       font-size: 15px;
-      color: #333;
+      color: var(--text);
       white-space: pre-line;
       word-break: break-word;
     }
-    body.dark .dialog-msg { color: #ddd; }
+
+    /* 主题选择弹窗 */
+    #themeModal .modal-box { width: 320px; }
+    .theme-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .theme-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font-size: 15px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .theme-option:hover { background: var(--hover-accent); }
+    .theme-option.selected {
+      border-color: var(--accent);
+      background: var(--hover-strong);
+      font-weight: 600;
+    }
+    .theme-option .check {
+      margin-left: auto;
+      color: var(--accent);
+      font-weight: 700;
+      visibility: hidden;
+    }
+    .theme-option.selected .check { visibility: visible; }
 
     /* 响应式 */
     .hamburger {
@@ -520,7 +553,7 @@
       top: 12px;
       left: 12px;
       z-index: 200;
-      background: #333;
+      background: var(--btn-solid);
       color: #fff;
       border: none;
       border-radius: 6px;
@@ -618,6 +651,18 @@
       <div class="modal-btns" style="margin-top:6px;">
         <button class="cancel-add" id="dialogCancel">取消</button>
         <button class="confirm-add" id="dialogOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主题选择弹窗 -->
+  <div class="modal-mask" id="themeModal">
+    <div class="modal-box">
+      <h3 class="modal-title">选择主题</h3>
+      <div class="theme-options">
+        <button class="theme-option" data-mode="light">☀️ 亮色<span class="check">✓</span></button>
+        <button class="theme-option" data-mode="dark">🌙 暗色<span class="check">✓</span></button>
+        <button class="theme-option" data-mode="auto">🖥️ 跟随系统<span class="check">✓</span></button>
       </div>
     </div>
   </div>
@@ -964,11 +1009,24 @@
         safeLocalSet(STORAGE_KEY_SETTING, JSON.stringify(cfg));
       }
 
-      function getTheme() {
-        return safeLocalGet(STORAGE_KEY_THEME) === 'dark';
+      function getThemeMode() {
+        const v = safeLocalGet(STORAGE_KEY_THEME);
+        return (v === 'dark' || v === 'light' || v === 'auto') ? v : 'auto';
       }
-      function saveTheme(dark) {
-        safeLocalSet(STORAGE_KEY_THEME, dark ? 'dark' : 'light');
+      function saveThemeMode(mode) {
+        safeLocalSet(STORAGE_KEY_THEME, mode);
+      }
+      function systemPrefersDark() {
+        try {
+          return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        } catch (e) {
+          return false;
+        }
+      }
+      function resolveDark(mode) {
+        if (mode === 'dark') return true;
+        if (mode === 'light') return false;
+        return systemPrefersDark();
       }
 
       function getSidebarWidth() {
@@ -986,7 +1044,7 @@
       let songData = getSongList();
       let styleCfg = getStyleConfig();
       let activeId = null;
-      let isDark = getTheme();
+      let currentThemeMode = getThemeMode();
       let deletedSongStack = [];
       // 排序字段与方向：'name-asc', 'name-desc', 'singer-asc', 'singer-desc', 'id-asc', 'id-desc'
       let sortMode = 'name-asc';
@@ -1273,7 +1331,7 @@
         } else {
           const msg = document.createElement('p');
           msg.textContent = '（该歌曲暂无歌词）';
-          msg.style.color = '#999';
+          msg.style.color = 'var(--text-muted)';
           msg.style.padding = '20px';
           box.appendChild(msg);
         }
@@ -1590,18 +1648,38 @@
       });
 
       // ============================================================
-      //  14. 主题
+      //  14. 主题（三档：亮 / 暗 / 跟随系统）
       // ============================================================
-      function applyTheme(dark) {
-        document.body.classList.toggle('dark', dark);
-        themeToggle.textContent = dark ? '☀️' : '🌓';
-        saveTheme(dark);
+      const themeModal = document.getElementById('themeModal');
+      const themeOptions = document.querySelectorAll('.theme-option');
+
+      function applyTheme(mode) {
+        currentThemeMode = mode;
+        document.body.classList.toggle('dark', resolveDark(mode));
+        saveThemeMode(mode);
       }
-      themeToggle.addEventListener('click', function() {
-        isDark = !isDark;
-        applyTheme(isDark);
-      });
-      applyTheme(isDark);
+      function openThemeModal() {
+        themeOptions.forEach(o => o.classList.toggle('selected', o.dataset.mode === currentThemeMode));
+        themeModal.classList.add('show');
+      }
+      function closeThemeModal() {
+        themeModal.classList.remove('show');
+      }
+      themeToggle.addEventListener('click', openThemeModal);
+      themeOptions.forEach(o => o.addEventListener('click', function() {
+        applyTheme(this.dataset.mode);
+        closeThemeModal();
+      }));
+      themeModal.addEventListener('click', (e) => { if (e.target === themeModal) closeThemeModal(); });
+
+      const systemMql = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+      if (systemMql && typeof systemMql.addEventListener === 'function') {
+        systemMql.addEventListener('change', (e) => {
+          if (currentThemeMode !== 'auto') return;
+          document.body.classList.toggle('dark', e.matches);
+        });
+      }
+      applyTheme(currentThemeMode);
 
       // ============================================================
       //  15. 搜索
@@ -1637,6 +1715,10 @@
 
         if (dialogModal.classList.contains('show')) {
           if (e.key === 'Escape') { closeDialog(); e.preventDefault(); }
+          return;
+        }
+        if (themeModal.classList.contains('show')) {
+          if (e.key === 'Escape') { closeThemeModal(); e.preventDefault(); }
           return;
         }
         if (addModal.classList.contains('show')) {

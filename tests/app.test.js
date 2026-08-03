@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadApp, importJson, flush, clickDialogOk, clickDialogCancel, dialogText } from './helpers.js';
+import { loadApp, importJson, flush, clickDialogOk, clickDialogCancel, dialogText, stubMatchMedia } from './helpers.js';
 
 describe('数据加载安全性', () => {
   it('损坏的歌曲 JSON 回退为默认歌曲且不崩溃', () => {
@@ -344,3 +344,68 @@ describe('交互逻辑', () => {
     expect(dialogText(win)).toContain('请填写歌曲名称');
   });
 });
+
+describe('三档主题', () => {
+  const bodyDark = (win) => win.document.body.classList.contains('dark');
+
+  it('未存储偏好时默认跟随系统（auto）：系统暗色则应用暗色', () => {
+    const { win } = loadApp({ seed: (w) => stubMatchMedia(w, true) });
+    expect(win.localStorage.getItem('lyric_theme')).toBe('auto');
+    expect(bodyDark(win)).toBe(true);
+  });
+
+  it('未存储偏好跟随系统：系统浅色则应用浅色', () => {
+    const { win } = loadApp({ seed: (w) => stubMatchMedia(w, false) });
+    expect(bodyDark(win)).toBe(false);
+  });
+
+  it('旧版存储值兼容迁移：dark 解析为暗色、light 解析为浅色', () => {
+    const d = loadApp({ seed: (w) => w.localStorage.setItem('lyric_theme', 'dark') });
+    expect(bodyDark(d.win)).toBe(true);
+    const l = loadApp({ seed: (w) => w.localStorage.setItem('lyric_theme', 'light') });
+    expect(bodyDark(l.win)).toBe(false);
+  });
+
+  it('主题弹窗打开含三个选项并高亮当前项，选择后即生效并存储', () => {
+    const { win } = loadApp();
+    win.document.getElementById('themeToggle').click();
+    const modal = win.document.getElementById('themeModal');
+    expect(modal.classList.contains('show')).toBe(true);
+    const opts = darkOpts(win);
+    expect(opts.map(o => o.dataset.mode)).toEqual(['light', 'dark', 'auto']);
+    expect(opts.find(o => o.dataset.mode === 'auto').classList.contains('selected')).toBe(true);
+
+    opts.find(o => o.dataset.mode === 'dark').click();
+    expect(bodyDark(win)).toBe(true);
+    expect(win.localStorage.getItem('lyric_theme')).toBe('dark');
+    expect(modal.classList.contains('show')).toBe(false);
+
+    win.document.getElementById('themeToggle').click();
+    expect(darkOpts(win).find(o => o.dataset.mode === 'dark').classList.contains('selected')).toBe(true);
+    darkOpts(win).find(o => o.dataset.mode === 'light').click();
+    expect(bodyDark(win)).toBe(false);
+    expect(win.localStorage.getItem('lyric_theme')).toBe('light');
+  });
+
+  it('auto 模式实时跟随系统变化；手动指定后不再跟随', () => {
+    const { win } = loadApp({
+      seed: (w) => {
+        const mql = stubMatchMedia(w, false);
+        w.__mql = mql;
+      }
+    });
+    expect(bodyDark(win)).toBe(false);
+    win.__mql.dispatchDark(true);
+    expect(bodyDark(win)).toBe(true);
+
+    win.document.getElementById('themeToggle').click();
+    darkOpts(win).find(o => o.dataset.mode === 'dark').click();
+    expect(win.localStorage.getItem('lyric_theme')).toBe('dark');
+    win.__mql.dispatchDark(false);
+    expect(bodyDark(win)).toBe(true);
+  });
+});
+
+function darkOpts(win) {
+  return [...win.document.querySelectorAll('.theme-option')];
+}
