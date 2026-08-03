@@ -491,8 +491,27 @@
       cursor: pointer;
       font-size: 15px;
     }
+    .modal-btns button {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+    }
     .confirm-add { background: #228844; color: #fff; }
     .cancel-add { background: #999; color: #fff; }
+    .modal-btns .confirm-add.danger { background: #c00; }
+    .modal-btns .confirm-add.danger:hover { background: #a00; }
+    .dialog-msg {
+      margin-bottom: 6px;
+      line-height: 1.8;
+      font-size: 15px;
+      color: #333;
+      white-space: pre-line;
+      word-break: break-word;
+    }
+    body.dark .dialog-msg { color: #ddd; }
 
     /* 响应式 */
     .hamburger {
@@ -591,6 +610,18 @@
     </div>
   </div>
 
+  <!-- 通用确认 / 提示弹窗 -->
+  <div class="modal-mask" id="dialogModal">
+    <div class="modal-box">
+      <h3 class="modal-title" id="dialogTitle">提示</h3>
+      <p class="dialog-msg" id="dialogMsg"></p>
+      <div class="modal-btns" style="margin-top:6px;">
+        <button class="cancel-add" id="dialogCancel">取消</button>
+        <button class="confirm-add" id="dialogOk">确定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 主容器 -->
   <div class="app-container">
     <!-- 侧边栏 -->
@@ -672,6 +703,7 @@
         </div>
         <button class="reset-btn" id="resetConfig">恢复默认样式</button>
         <button class="reset-songs-btn" id="resetSongs">恢复默认歌曲列表</button>
+        <button class="reset-btn" id="restoreBackupBtn">恢复导入前备份</button>
       </div>
       <div id="songListWrap"></div>
     </main>
@@ -698,6 +730,9 @@
       const STORAGE_KEY_SETTING = "lyric_style_config";
       const STORAGE_KEY_THEME = "lyric_theme";
       const STORAGE_KEY_SIDEBAR_WIDTH = "lyric_sidebar_width";
+      const STORAGE_KEY_BACKUP = "lyric_backup_songs";
+      // 数据格式版本：v1=裸数组；v2={version, songs}
+      const SCHEMA_VERSION = 2;
 
       const defaultSongList = [{
         id: "hurt",
@@ -727,49 +762,230 @@
         align: "center"
       };
 
-      function getSongList() {
-        const str = localStorage.getItem(STORAGE_KEY_SONGS);
-        if (!str) {
-          saveSongList(defaultSongList);
-          return JSON.parse(JSON.stringify(defaultSongList));
-        }
-        return JSON.parse(str);
+      function safeLocalGet(key) {
+        try { return localStorage.getItem(key); }
+        catch (e) { return null; }
       }
+
+      // ============================================================
+      //  通用确认 / 提示弹窗（替代原生 alert/confirm）
+      // ============================================================
+      let dialogOkHandler = null;
+      let dialogCancelHandler = null;
+
+      function openDialog(opts) {
+        dialogTitle.textContent = opts.title || '提示';
+        dialogMsg.textContent = opts.message || '';
+        dialogOk.textContent = opts.okText || '确定';
+        dialogOk.classList.toggle('danger', !!opts.danger);
+        dialogOkHandler = opts.onOk || null;
+        dialogCancelHandler = opts.onCancel || null;
+        if (typeof opts.cancelText === 'string') {
+          dialogCancel.style.display = '';
+          dialogCancel.textContent = opts.cancelText;
+        } else {
+          dialogCancel.style.display = 'none';
+        }
+        dialogModal.classList.add('show');
+      }
+
+      function closeDialog() {
+        dialogModal.classList.remove('show');
+        dialogOkHandler = null;
+        dialogCancelHandler = null;
+      }
+
+      function showAlert(message) {
+        openDialog({ message });
+      }
+
+      function openDeleteDialog(song) {
+        openDialog({
+          title: '删除歌曲',
+          message: `确定要删除「${song.name}」吗？`,
+          okText: '删除',
+          danger: true,
+          onOk: () => deleteSong(song.id)
+        });
+      }
+
+      const dialogModal = document.getElementById('dialogModal');
+      const dialogTitle = document.getElementById('dialogTitle');
+      const dialogMsg = document.getElementById('dialogMsg');
+      const dialogOk = document.getElementById('dialogOk');
+      const dialogCancel = document.getElementById('dialogCancel');
+
+      dialogOk.addEventListener('click', function() {
+        const h = dialogOkHandler;
+        closeDialog();
+        if (h) h();
+      });
+      dialogCancel.addEventListener('click', function() {
+        const h = dialogCancelHandler;
+        closeDialog();
+        if (h) h();
+      });
+      dialogModal.addEventListener('click', function(e) {
+        if (e.target === dialogModal) closeDialog();
+      });
+
+      function safeLocalSet(key, value, hint) {
+        try {
+          localStorage.setItem(key, value);
+          return true;
+        } catch (e) {
+          showAlert('保存失败：本地存储空间不足' + (hint ? '（' + hint + '）' : '') + '。建议先「导出」备份，再减少歌词数量后重试。');
+          return false;
+        }
+      }
+
+      function trackAutoId(id) {
+        if (typeof id === 'string' && id.startsWith('autoSong_')) {
+          const num = parseInt(id.replace('autoSong_', ''), 10);
+          if (num >= nextAutoId) nextAutoId = num + 1;
+        }
+      }
+
+      function sanitizeSong(raw, fallbackId, seen) {
+        if (!raw || typeof raw !== 'object') return null;
+        const toStr = (v, trim) => {
+          if (typeof v === 'string') return trim ? v.trim() : v;
+          if (v === null || v === undefined) return '';
+          return String(v);
+        };
+        const name = toStr(raw.name, true);
+        const singer = toStr(raw.singer, true);
+        const left = toStr(raw.left, false);
+        const right = toStr(raw.right, false);
+        if (!name && !left.trim() && !right.trim()) return null;
+
+        let id = (typeof raw.id === 'string' && raw.id.trim()) ? raw.id.trim() : String(fallbackId);
+        let guard = 0;
+        while (seen.has(id)) id = id + '_dup' + (guard++);
+        seen.add(id);
+        trackAutoId(id);
+        return { id, name: name || '未命名歌曲', singer, left, right };
+      }
+
+      // 清洗并规范化歌曲列表：字段转为字符串、id 去重、过滤空条目
+      function sanitizeSongList(list) {
+        if (!Array.isArray(list)) return [];
+        const seen = new Set();
+        const out = [];
+        list.forEach((raw, i) => {
+          const song = sanitizeSong(raw, 'song_' + (i + 1), seen);
+          if (song) out.push(song);
+        });
+        return out;
+      }
+
+      function getSongList() {
+        const raw = safeLocalGet(STORAGE_KEY_SONGS);
+        if (raw === null) {
+          // 首次使用：写入默认歌曲
+          const fresh = JSON.parse(JSON.stringify(defaultSongList));
+          saveSongList(fresh);
+          return fresh;
+        }
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (e) { parsed = undefined; }
+        const { songs, needSave } = migrateSongData(parsed);
+        if (needSave) saveSongList(songs);
+        return songs;
+      }
+
+      // 数据格式迁移：v1（裸数组）→ v2（{version, songs}）；非法数据回退默认
+      function migrateSongData(parsed) {
+        if (parsed === undefined) {
+          return { songs: JSON.parse(JSON.stringify(defaultSongList)), needSave: false };
+        }
+        if (Array.isArray(parsed)) {
+          return { songs: sanitizeSongList(parsed), needSave: SCHEMA_VERSION !== 1 };
+        }
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.songs)) {
+          return { songs: sanitizeSongList(parsed.songs), needSave: parsed.version !== SCHEMA_VERSION };
+        }
+        return { songs: JSON.parse(JSON.stringify(defaultSongList)), needSave: false };
+      }
+
       function saveSongList(list) {
-        localStorage.setItem(STORAGE_KEY_SONGS, JSON.stringify(list));
+        safeLocalSet(STORAGE_KEY_SONGS, JSON.stringify({ version: SCHEMA_VERSION, songs: list }), '已超出容量限制');
+      }
+
+      // 从导入文件中提取歌曲数组：兼容 v1 数组与 v2 {version, songs}
+      function extractSongs(data) {
+        if (Array.isArray(data)) return data;
+        if (data && typeof data === 'object' && Array.isArray(data.songs)) return data.songs;
+        return null;
+      }
+
+      // 合并导入：保留现有歌曲，跳过 id 与现有列表冲突的新歌
+      function mergeSongs(existing, incoming) {
+        const seen = new Set(existing.map(s => s.id));
+        const merged = existing.slice();
+        incoming.forEach(s => {
+          if (seen.has(s.id)) return;
+          seen.add(s.id);
+          merged.push(s);
+        });
+        return merged;
+      }
+
+      function buildExportData() {
+        return { version: SCHEMA_VERSION, songs: songData };
+      }
+
+      function backupSongs() {
+        safeLocalSet(STORAGE_KEY_BACKUP, JSON.stringify(songData));
+      }
+
+      function sanitizeConfig(cfg) {
+        const c = { ...defaultConfig };
+        if (cfg && typeof cfg === 'object') {
+          if (typeof cfg.gap === 'number' && isFinite(cfg.gap)) c.gap = Math.min(100, Math.max(10, cfg.gap));
+          if (typeof cfg.fontSize === 'number' && isFinite(cfg.fontSize)) c.fontSize = Math.min(26, Math.max(12, cfg.fontSize));
+          if (typeof cfg.lineHeight === 'number' && isFinite(cfg.lineHeight)) c.lineHeight = Math.min(3.5, Math.max(1.2, cfg.lineHeight));
+          if (typeof cfg.letterSpacing === 'number' && isFinite(cfg.letterSpacing)) c.letterSpacing = Math.min(6, Math.max(-2, cfg.letterSpacing));
+          if (['center', 'left', 'right'].indexOf(cfg.align) !== -1) c.align = cfg.align;
+        }
+        return c;
       }
 
       function getStyleConfig() {
-        const str = localStorage.getItem(STORAGE_KEY_SETTING);
-        if (!str) return { ...defaultConfig };
-        return JSON.parse(str);
+        let parsed = null;
+        try {
+          const str = safeLocalGet(STORAGE_KEY_SETTING);
+          if (str) parsed = JSON.parse(str);
+        } catch (e) { parsed = null; }
+        return sanitizeConfig(parsed);
       }
+
       function saveStyleConfig(cfg) {
-        localStorage.setItem(STORAGE_KEY_SETTING, JSON.stringify(cfg));
+        safeLocalSet(STORAGE_KEY_SETTING, JSON.stringify(cfg));
       }
 
       function getTheme() {
-        return localStorage.getItem(STORAGE_KEY_THEME) === 'dark';
+        return safeLocalGet(STORAGE_KEY_THEME) === 'dark';
       }
       function saveTheme(dark) {
-        localStorage.setItem(STORAGE_KEY_THEME, dark ? 'dark' : 'light');
+        safeLocalSet(STORAGE_KEY_THEME, dark ? 'dark' : 'light');
       }
 
       function getSidebarWidth() {
-        const w = localStorage.getItem(STORAGE_KEY_SIDEBAR_WIDTH);
-        return w ? parseInt(w, 10) : 320;
+        const w = parseInt(safeLocalGet(STORAGE_KEY_SIDEBAR_WIDTH) || '', 10);
+        return isFinite(w) ? Math.min(600, Math.max(200, w)) : 320;
       }
       function saveSidebarWidth(w) {
-        localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, String(w));
+        safeLocalSet(STORAGE_KEY_SIDEBAR_WIDTH, String(w));
       }
 
       // ============================================================
       //  2. 状态
       // ============================================================
+      let nextAutoId = 10;
       let songData = getSongList();
       let styleCfg = getStyleConfig();
       let activeId = null;
-      let nextAutoId = 10;
       let isDark = getTheme();
       let deletedSongStack = [];
       // 排序字段与方向：'name-asc', 'name-desc', 'singer-asc', 'singer-desc', 'id-asc', 'id-desc'
@@ -810,6 +1026,7 @@
       const alignSelect = document.getElementById('alignSelect');
       const resetConfigBtn = document.getElementById('resetConfig');
       const resetSongsBtn = document.getElementById('resetSongs');
+      const restoreBackupBtn = document.getElementById('restoreBackupBtn');
       const undoDeleteBtn = document.getElementById('undoDeleteBtn');
 
       const themeToggle = document.getElementById('themeToggle');
@@ -823,11 +1040,15 @@
       let isResizing = false;
       let startX = 0;
       let startWidth = 0;
+      let resizePending = null;
+      let resizeFrame = null;
 
       resizeHandle.addEventListener('mousedown', function(e) {
         isResizing = true;
         startX = e.clientX;
         startWidth = sidebar.offsetWidth;
+        resizePending = null;
+        resizeFrame = null;
         document.body.style.cursor = 'col-resize';
         resizeHandle.classList.add('active');
         document.addEventListener('mousemove', onResize);
@@ -838,15 +1059,24 @@
       function onResize(e) {
         if (!isResizing) return;
         const delta = e.clientX - startX;
-        let newWidth = startWidth + delta;
-        newWidth = Math.min(600, Math.max(200, newWidth));
-        sidebar.style.width = newWidth + 'px';
-        sidebar.style.minWidth = newWidth + 'px';
+        resizePending = Math.min(600, Math.max(200, startWidth + delta));
+        if (!resizeFrame) resizeFrame = requestAnimationFrame(applyResize);
+      }
+
+      function applyResize() {
+        resizeFrame = null;
+        sidebar.style.width = resizePending + 'px';
+        sidebar.style.minWidth = resizePending + 'px';
       }
 
       function stopResize() {
         if (isResizing) {
           isResizing = false;
+          if (resizeFrame) {
+            cancelAnimationFrame(resizeFrame);
+            resizeFrame = null;
+          }
+          if (resizePending !== null) applyResize();
           document.body.style.cursor = '';
           resizeHandle.classList.remove('active');
           document.removeEventListener('mousemove', onResize);
@@ -858,6 +1088,9 @@
       const savedWidth = getSidebarWidth();
       sidebar.style.width = savedWidth + 'px';
       sidebar.style.minWidth = savedWidth + 'px';
+
+      // 中文排序用拼音规则，而非 Unicode 码点
+      const zhCollator = new Intl.Collator('zh-Hans-CN', { numeric: true });
 
       // ============================================================
       //  4. 核心数据操作（移除 libraryOrder）
@@ -887,7 +1120,7 @@
             valA = a.id;
             valB = b.id;
           }
-          let cmp = valA.localeCompare(valB);
+          const cmp = zhCollator.compare(valA, valB);
           return asc ? cmp : -cmp;
         });
         return list;
@@ -899,10 +1132,11 @@
       function renderLibrary() {
         const list = getSortedLibrary();
         libraryListEl.innerHTML = '';
+        const frag = document.createDocumentFragment();
         list.forEach(song => {
-          const item = createSongItem(song);
-          libraryListEl.appendChild(item);
+          frag.appendChild(createSongItem(song));
         });
+        libraryListEl.appendChild(frag);
         libraryCount.textContent = list.length;
         songCount.textContent = songData.length + ' 首';
       }
@@ -945,7 +1179,7 @@
         delBtn.title = '从库中删除';
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (confirm(`确定要删除「${song.name}」吗？`)) deleteSong(song.id);
+          openDeleteDialog(song);
         });
         actions.appendChild(delBtn);
 
@@ -958,7 +1192,9 @@
         return div;
       }
 
-      function fullRender() {
+      // 可选 targetId：先切换激活歌曲再一次性渲染，避免 fullRender + switchSong 双重重绘
+      function fullRender(targetId) {
+        if (targetId) activeId = targetId;
         renderLibrary();
         renderContent();
         undoDeleteBtn.disabled = deletedSongStack.length === 0;
@@ -1003,7 +1239,7 @@
         delSongBtn.className = 'del-song-btn';
         delSongBtn.textContent = '删除此歌';
         delSongBtn.addEventListener('click', () => {
-          if (confirm(`确定要删除「${song.name}」吗？`)) deleteSong(song.id);
+          openDeleteDialog(song);
         });
         titleDiv.appendChild(delSongBtn);
         wrap.appendChild(titleDiv);
@@ -1043,7 +1279,7 @@
         }
         wrap.appendChild(box);
 
-        const totalWords = (song.left + song.right).replace(/\s/g, '').length;
+        const totalWords = (String(song.left || '') + String(song.right || '')).replace(/\s/g, '').length;
         const countDiv = document.createElement('div');
         countDiv.className = 'word-count';
         countDiv.textContent = `📝 总字数：${totalWords}`;
@@ -1061,6 +1297,7 @@
         activeId = targetId;
         document.querySelectorAll('.song-item').forEach(el => {
           el.classList.toggle('active', el.dataset.id === targetId);
+          if (el.dataset.id === targetId) el.scrollIntoView({ block: 'nearest' });
         });
         renderContent();
       }
@@ -1072,11 +1309,11 @@
         songData.splice(index, 1);
         saveSongList(songData);
         deletedSongStack.push(deleted);
+        if (deletedSongStack.length > 10) deletedSongStack.shift();
         if (activeId === id) {
           activeId = songData.length > 0 ? songData[0].id : null;
         }
         fullRender();
-        if (activeId) switchSong(activeId);
       }
 
       function undoDelete() {
@@ -1084,8 +1321,7 @@
         const restored = deletedSongStack.pop();
         songData.push(restored);
         saveSongList(songData);
-        fullRender();
-        switchSong(restored.id);
+        fullRender(restored.id);
       }
 
       // ============================================================
@@ -1125,27 +1361,26 @@
         const singer = inputSinger.value.trim();
         const left = inputLeft.value;
         const right = inputRight.value;
-        if (!name) { alert('请填写歌曲名称'); return; }
-        if (!left.trim() && !right.trim()) { alert('至少填写一段歌词'); return; }
+        if (!name) { showAlert('请填写歌曲名称'); return; }
+        if (!left.trim() && !right.trim()) { showAlert('至少填写一段歌词'); return; }
 
         if (editingId) {
           const idx = songData.findIndex(s => s.id === editingId);
-          if (idx === -1) { alert('歌曲不存在'); return; }
+          if (idx === -1) { showAlert('歌曲不存在'); return; }
+          const targetId = editingId;
           songData[idx] = { ...songData[idx], name, singer, left, right };
           saveSongList(songData);
           closeModal();
-          fullRender();
-          switchSong(editingId);
-          alert(`歌曲「${name}」已更新！`);
+          fullRender(targetId);
+          showAlert(`歌曲「${name}」已更新！`);
         } else {
           const newId = 'autoSong_' + (nextAutoId++);
           const newSong = { id: newId, name, singer, left, right };
           songData.push(newSong);
           saveSongList(songData);
           closeModal();
-          fullRender();
-          switchSong(newId);
-          alert(`歌曲「${name}」添加成功！`);
+          fullRender(newId);
+          showAlert(`歌曲「${name}」添加成功！`);
         }
       });
 
@@ -1170,12 +1405,10 @@
         if (idx === -1) idx = 0;
         sortMode = modes[(idx + 1) % modes.length];
         updateSortButtonLabel();
-        fullRender();
-        // 保持当前激活歌曲在列表中
+        // 保持当前激活歌曲在列表中：若被过滤掉则切到过滤后首项，一次渲染完成
         const filtered = getSortedLibrary();
-        if (activeId && !filtered.some(s => s.id === activeId) && filtered.length > 0) {
-          switchSong(filtered[0].id);
-        }
+        const targetId = (activeId && !filtered.some(s => s.id === activeId) && filtered.length > 0) ? filtered[0].id : undefined;
+        fullRender(targetId);
       }
 
       sortToggleBtn.addEventListener('click', cycleSort);
@@ -1271,8 +1504,7 @@
       //  12. 导入/导出（移除 order 字段）
       // ============================================================
       exportBtn.addEventListener('click', function() {
-        const data = { songs: songData };
-        const json = JSON.stringify(data, null, 2);
+        const json = JSON.stringify(buildExportData(), null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1292,39 +1524,70 @@
         reader.onload = function(ev) {
           try {
             const data = JSON.parse(ev.target.result);
-            if (!data.songs || !Array.isArray(data.songs)) throw new Error('缺少 songs 数组');
-            if (confirm('即将导入数据，将覆盖当前所有数据，确定吗？')) {
-              songData = data.songs;
-              saveSongList(songData);
-              searchInput.value = '';
-              fullRender();
-              if (songData.length > 0) switchSong(songData[0].id);
-              alert('导入成功！');
-            }
+            const songs = extractSongs(data);
+            if (!songs) throw new Error('缺少 songs 数组');
+            const incoming = sanitizeSongList(songs);
+            openDialog({
+              title: '导入数据',
+              message: '选择导入方式：合并会保留现有歌曲，重复 id 自动跳过；覆盖会清空并替换当前全部数据。',
+              okText: '合并导入',
+              cancelText: '覆盖导入',
+              onOk: () => applyImport(mergeSongs(songData, incoming), '合并'),
+              onCancel: () => applyImport(incoming, '覆盖')
+            });
           } catch (err) {
-            alert('导入失败：' + err.message);
+            showAlert('导入失败：' + err.message);
           }
         };
         reader.readAsText(file);
         importFileInput.value = '';
       });
 
+      function applyImport(list, mode) {
+        backupSongs();
+        songData = list;
+        saveSongList(songData);
+        deletedSongStack = [];
+        searchInput.value = '';
+        fullRender(songData.length > 0 ? songData[0].id : undefined);
+        showAlert('导入成功！' + '（' + mode + '）');
+      }
+
       // ============================================================
       //  13. 恢复默认
       // ============================================================
       resetSongsBtn.addEventListener('click', function() {
-        if (confirm('将重置为默认歌曲，所有数据将被覆盖，确定吗？')) {
-          songData = JSON.parse(JSON.stringify(defaultSongList));
-          saveSongList(songData);
-          deletedSongStack = [];
-          searchInput.value = '';
-          fullRender();
-          if (songData.length > 0) switchSong(songData[0].id);
-          alert('已恢复默认');
-        }
+        openDialog({
+          title: '恢复默认',
+          message: '将重置为默认歌曲，所有数据将被覆盖，确定吗？',
+          okText: '恢复默认',
+          danger: true,
+          onOk: () => {
+            songData = JSON.parse(JSON.stringify(defaultSongList));
+            saveSongList(songData);
+            deletedSongStack = [];
+            searchInput.value = '';
+            fullRender(songData.length > 0 ? songData[0].id : undefined);
+            showAlert('已恢复默认');
+          }
+        });
       });
 
       undoDeleteBtn.addEventListener('click', undoDelete);
+
+      restoreBackupBtn.addEventListener('click', function() {
+        const raw = safeLocalGet(STORAGE_KEY_BACKUP);
+        if (!raw) { showAlert('没有可用的备份（导入新数据时会自动备份原有数据）'); return; }
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (e) { parsed = undefined; }
+        const { songs } = migrateSongData(parsed);
+        songData = songs;
+        saveSongList(songData);
+        deletedSongStack = [];
+        searchInput.value = '';
+        fullRender(songData.length > 0 ? songData[0].id : undefined);
+        showAlert('已恢复导入前的备份');
+      });
 
       // ============================================================
       //  14. 主题
@@ -1347,11 +1610,9 @@
       searchInput.addEventListener('input', function() {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
-          fullRender();
           const filtered = getSortedLibrary();
-          if (activeId && !filtered.some(s => s.id === activeId)) {
-            if (filtered.length > 0) switchSong(filtered[0].id);
-          }
+          const targetId = (activeId && !filtered.some(s => s.id === activeId) && filtered.length > 0) ? filtered[0].id : undefined;
+          fullRender(targetId);
         }, 200);
       });
 
@@ -1371,6 +1632,13 @@
       //  17. 键盘快捷键
       // ============================================================
       document.addEventListener('keydown', function(e) {
+        const isInput = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT');
+        const isModifier = e.ctrlKey || e.metaKey;
+
+        if (dialogModal.classList.contains('show')) {
+          if (e.key === 'Escape') { closeDialog(); e.preventDefault(); }
+          return;
+        }
         if (addModal.classList.contains('show')) {
           if (e.key === 'Escape') { closeModal(); e.preventDefault(); }
           return;
@@ -1380,11 +1648,26 @@
           return;
         }
 
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+        // 全局组合键：输入框内同样生效
+        if (isModifier && (e.key === 'b' || e.key === 'B')) {
           e.preventDefault();
           openAddBtn.click();
           return;
         }
+        if (isModifier && (e.key === 'f' || e.key === 'F')) {
+          searchInput.focus();
+          searchInput.select();
+          e.preventDefault();
+          return;
+        }
+        if (isModifier && (e.key === 's' || e.key === 'S')) {
+          exportBtn.click();
+          e.preventDefault();
+          return;
+        }
+
+        // 在输入框 / 文本域 / 下拉框内输入时，不拦截单个按键
+        if (isInput) return;
 
         const filtered = getSortedLibrary();
         if (!filtered.length) return;
@@ -1414,23 +1697,6 @@
             e.preventDefault();
             break;
           }
-          case 'f':
-          case 'F': {
-            if (e.ctrlKey || e.metaKey) {
-              searchInput.focus();
-              searchInput.select();
-              e.preventDefault();
-            }
-            break;
-          }
-          case 's':
-          case 'S': {
-            if (e.ctrlKey || e.metaKey) {
-              exportBtn.click();
-              e.preventDefault();
-            }
-            break;
-          }
         }
       });
 
@@ -1446,12 +1712,22 @@
         });
         if (!activeId && songData.length > 0) activeId = songData[0].id;
         fullRender();
-        if (activeId) switchSong(activeId);
-        applyStyleToDOM(styleCfg);
       }
 
       init();
-      window.__app = { songData, switchSong, fullRender, undoDelete };
+      window.__app = {
+        getSongs: () => songData,
+        getActiveId: () => activeId,
+        getStyleConfig: () => styleCfg,
+        switchSong,
+        fullRender,
+        undoDelete,
+        sanitizeSongList,
+        migrateSongData,
+        extractSongs,
+        mergeSongs,
+        buildExportData
+      };
     })();
   </script>
 </body>
